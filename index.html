@@ -1,148 +1,3 @@
-<!DOCTYPE html>
-<html lang="ar" dir="rtl">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>سؤالستان - النسخة الاحترافية الكاملة</title>
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/animate.css/4.1.1/animate.min.css"/>
-    <style>
-        :root { --main: #a855f7; --gold: #facc15; --red: #ef4444; --green: #22c55e; }
-        body { margin: 0; background: #0b0e14; color: white; font-family: 'Segoe UI', sans-serif; display: flex; align-items: center; justify-content: center; overflow-x: hidden; min-height: 100vh; }
-        .bg-stars { position: fixed; top: 0; left: 0; width: 100%; height: 100%; z-index: -1; background: radial-gradient(circle, #1e1b4b 0%, #020617 100%); }
-        
-        /* تصميم البطاقة متوافق مع الجوال */
-        .card { background: rgba(15, 23, 42, 0.95); border: 3px solid var(--main); border-radius: 30px; width: 92vw; max-width: 500px; min-height: 80vh; padding: 20px; position: relative; display: flex; flex-direction: column; align-items: center; box-shadow: 0 0 30px rgba(168, 85, 247, 0.2); margin: 15px 0; }
-        
-        #timer-container { position: absolute; top: 0; left: 0; width: 100%; height: 6px; background: rgba(255,255,255,0.1); display: none; z-index: 1000; }
-        #timer-bar { height: 100%; width: 100%; background: var(--main); transition: 1s linear; }
-
-        .btn-game { background: none; border: 2px solid var(--gold); color: var(--gold); padding: 10px 20px; border-radius: 12px; font-size: 18px; font-weight: bold; cursor: pointer; transition: 0.3s; width: 100%; margin-top: 10px; }
-        .btn-game:hover { background: var(--gold); color: black; }
-        
-        .input-box { background: rgba(255,255,255,0.05); border: 1px solid var(--main); color: white; padding: 10px; border-radius: 12px; text-align: center; font-size: 16px; width: 100%; margin: 5px 0; box-sizing: border-box; }
-
-        /* تعديل شكل القوائم المنسدلة لتكون داكنة */
-        .select-box { background: #1e1b4b; border: 2px solid var(--main); color: white; padding: 10px; border-radius: 12px; text-align: center; font-size: 16px; width: 100%; margin: 5px 0; cursor: pointer; outline: none; appearance: none; -webkit-appearance: none; }
-        .select-box option { background-color: #0b0e14; color: white; }
-
-        .how-to-play { margin-top: 25px; padding: 15px; background: rgba(255, 255, 255, 0.03); border-radius: 15px; border: 1px solid rgba(168, 85, 247, 0.3); width: 90%; text-align: right; }
-        .how-to-play ul { padding-right: 20px; margin: 5px 0; }
-        .how-to-play li { font-size: 13px; color: rgba(255,255,255,0.8); margin-bottom: 5px; }
-
-        #result-overlay { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); width: 85%; padding: 25px; border-radius: 20px; display: none; text-align: center; z-index: 200; backdrop-filter: blur(15px); border: 4px solid; background: rgba(0,0,0,0.95); box-sizing: border-box; }
-        .q-image { max-width: 100%; max-height: 250px; border-radius: 15px; margin-bottom: 10px; border: 2px solid var(--main); object-fit: contain; }
-
-        /* شريط المعلومات العلوي الجديد للعداد والساعة */
-        .top-info-bar { display: flex; justify-content: space-between; align-items: center; background: rgba(0,0,0,0.5); padding: 10px; border-radius: 15px; width: 100%; position: relative; margin-bottom: 10px; box-sizing: border-box; }
-        #real-time-clock { position: absolute; left: 50%; transform: translateX(-50%); color: var(--gold); font-weight: bold; font-size: 14px; border: 1px solid rgba(250, 204, 21, 0.3); padding: 2px 8px; border-radius: 8px; white-space: nowrap; }
-        #win-screen { display:none; text-align:center; width: 100%; padding: 30px 10px; z-index: 300; }
-    </style>
-</head>
-<body>
-
-<div class="bg-stars"></div>
-<div id="timer-container"><div id="timer-bar"></div></div>
-
-<button id="exit-btn" style="position:absolute; top:15px; left:15px; z-index:1001; background:none; color:white; border:1px solid white; padding:5px 12px; border-radius:10px; cursor:pointer; font-size: 12px; display:none;" onclick="exitGame()">⬅ خروج</button>
-
-<div id="join-screen" class="card">
-    <h1 style="font-size: 45px; color: var(--main); text-shadow: 0 0 15px var(--main); margin: 10px 0;">سؤالستان</h1>
-    
-    <div style="width: 100%; max-width: 320px;">
-        <input type="text" id="player-name" class="input-box" placeholder="اكتب اسمك">
-        <div style="display: flex; gap: 5px;">
-            <input type="text" id="room-id" class="input-box" placeholder="كود الغرفة">
-            <button class="btn-game" style="width: 50px; margin-top: 5px; padding: 5px;" onclick="generateCode()">🎲</button>
-        </div>
-        
-        <div style="display: flex; gap: 5px; margin-top: 5px;">
-            <input type="text" id="team-a-name" class="input-box" placeholder="اسم فريق A (اختياري)">
-            <input type="text" id="team-b-name" class="input-box" placeholder="اسم فريق B (اختياري)">
-        </div>
-
-        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 10px;">
-            <div>
-                <label style="font-size:11px; color: var(--gold);">وقت الجولة</label>
-                <select id="set-time" class="select-box">
-                    <option value="15">15 ثانية</option>
-                    <option value="20" selected>20 ثانية</option>
-                    <option value="30">30 ثانية</option>
-                    <option value="45">45 ثانية</option>
-                    <option value="60">60 ثانية</option>
-                </select>
-            </div>
-            <div>
-                <label style="font-size:11px; color: var(--gold);">عدد الجولات</label>
-                <select id="set-rounds" class="select-box">
-                    <option value="5">5 جولات</option>
-                    <option value="10" selected>10 جولات</option>
-                    <option value="20">20 جولة</option>
-                </select>
-            </div>
-        </div>
-
-        <button class="btn-game" onclick="join('A')">الانضمام للفريق الأول</button>
-        <button class="btn-game" style="border-color:var(--red); color:var(--red);" onclick="join('B')">الانضمام للفريق الثاني</button>
-    </div>
-
-    <div class="how-to-play">
-        <h3 style="color: var(--gold); margin: 0 0 10px 0; font-size: 16px;">كيف تلعب؟ 📖</h3>
-        <ul>
-            <li>أنشئ غرفة أو انضم بكود.</li>
-            <li>9 جولات عادية وجولة واحدة مزاد مخفية!</li>
-            <li>الصح يكسبك 50 نقطة والخطأ يخصم 30.</li>
-            <li>إذا انتهى الوقت ننتقل للسؤال التالي.</li>
-        </ul>
-    </div>
-</div>
-
-<div id="game-screen" style="display: none; width: 100vw; justify-content: center;">
-    <div class="card">
-        <div id="result-overlay" class="animate__animated">
-            <h1 id="result-status" style="font-size:35px;"></h1>
-            <p id="result-detail" style="font-size:18px;"></p>
-        </div>
-
-        <div class="top-info-bar">
-            <div id="round-counter" style="color: var(--gold); font-weight: bold; font-size: 13px;">جولة: <span id="current-round">1</span>/<span id="total-rounds">10</span></div>
-            <div id="real-time-clock">00:00:00</div>
-            <div style="font-size: 13px;"><span id="display-name-A">A</span>: <span id="pts-A">100</span> | <span id="display-name-B">B</span>: <span id="pts-B">100</span></div>
-        </div>
-
-        <div style="display: flex; justify-content: space-between; align-items: center; width: 100%; margin-bottom: 10px;">
-            <div style="display: flex; align-items: center; gap: 10px;">
-                <div id="leader-tag" style="display:none; color: var(--gold); font-weight: bold; font-size: 12px;">👑 قائد</div>
-                <div id="my-team-display" style="color: white; font-weight: bold; font-size: 13px;"></div>
-            </div>
-            <div onclick="copyRoomCode()" style="font-size: 12px; cursor: pointer;"><span id="display-room-id">---</span> 📋</div>
-        </div>
-
-        <div id="win-screen" class="animate__animated zoomIn">
-            <h1 style="font-size: 35px; color: var(--gold); text-shadow: 0 0 20px var(--gold);">🏆 انتهت اللعبة!</h1>
-            <div id="winner-text" style="color: white; margin: 20px 0;"></div>
-            <button class="btn-game" onclick="location.reload()">لعب مرة أخرى 🔄</button>
-        </div>
-        
-        <div id="auction-area" style="text-align: center; width: 100%; margin-top: 5px;">
-            <h2 id="hint-text" style="font-size: 22px; border: 2px dashed var(--gold); padding: 20px; border-radius: 20px;">بانتظار القائد لبدء اللعب...</h2>
-            <div id="leader-controls" style="display:none; margin-top: 10px; gap: 5px; justify-content: center;">
-                <button class="btn-game" style="width: 48%; border-color: var(--green); color: var(--green);" onclick="socket.emit('requestAuction', {roomID: myInfo.room})">سؤال جديد 🚀</button>
-                <button class="btn-game" style="width: 48%; border-color: #6b7280; color: #9ca3af;" onclick="socket.emit('changeQuestion', {roomID: myInfo.room})">تغيير السؤال 🔄</button>
-            </div>
-            <div id="bid-ui" style="display:none; margin-top: 10px;">
-                <p>المزاد: <span id="current-bid">0</span></p>
-                <button class="btn-game" onclick="bid()">زايد +10 🔨</button>
-                <button id="win-btn" class="btn-game" style="display:none; background:white; color:black;" onclick="submitAuctionWinner()">إرسال المزايدة ✅</button>
-            </div>
-        </div>
-
-        <div id="question-area" style="display: none; text-align: center; width: 100%;">
-            <div id="q-content"></div>
-            <div id="options" style="display: grid; grid-template-columns: 1fr; gap: 10px; margin-top: 15px; width: 100%;"></div>
-        </div>
-    </div>
-</div>
-
 <script src="/socket.io/socket.io.js"></script>
 <script>
     const sounds = { 
@@ -196,14 +51,15 @@
 
     function exitGame() {
         playSnd('click');
+        socket.emit('leaveRoom');
         document.getElementById('game-screen').style.display = 'none';
         document.getElementById('exit-btn').style.display = 'none';
         document.getElementById('join-screen').style.display = 'flex';
+        
         isLeader = false;
         document.getElementById('leader-tag').style.display = 'none'; 
         document.getElementById('leader-controls').style.display = 'none'; 
         document.getElementById('hint-text').innerText = "بانتظار بدء اللعبة...";
-        socket.emit('leaveRoom');
     }
 
     socket.on('init', d => {
@@ -217,9 +73,9 @@
             document.getElementById('leader-controls').style.display = 'flex'; 
             document.getElementById('hint-text').innerText = "أنت القائد! ابدأ الجولة الآن 🚀";
         } else {
-            document.getElementById('hint-text').innerText = "بانتظار القائد لبدء اللعبة...";
             document.getElementById('leader-tag').style.display = 'none'; 
             document.getElementById('leader-controls').style.display = 'none'; 
+            document.getElementById('hint-text').innerText = "بانتظار القائد لبدء اللعبة...";
         }
         document.getElementById('pts-A').innerText = d.pointsA; 
         document.getElementById('pts-B').innerText = d.pointsB;
@@ -243,7 +99,7 @@
         if (imgSrc) content.innerHTML += `<img src="${imgSrc}" class="q-image">`;
         content.innerHTML += `<h1 style="font-size: 24px; color: var(--main); margin: 0;">${currentQ.q}</h1>`;
         
-        renderOptions(currentQ.options, true); // الجميع يمكنه الإجابة
+        renderOptions(currentQ.options, true); 
         startTimer();
     });
 
@@ -265,6 +121,7 @@
             document.getElementById('leader-controls').style.display = 'none'; 
         } else {
             document.getElementById('bid-ui').style.display = 'none'; 
+            document.getElementById('leader-controls').style.display = 'none'; 
         }
     });
 
@@ -295,7 +152,7 @@
         if (imgSrc) content.innerHTML += `<img src="${imgSrc}" class="q-image">`;
         content.innerHTML += `<h1 style="font-size: 24px; color: var(--main); margin: 0;">${d.question.q}</h1>`;
         
-        renderOptions(d.question.options, myInfo.team === currentWinner); // تفعيل الأزرار للفائز فقط بالمزاد
+        renderOptions(d.question.options, myInfo.team === currentWinner); 
         document.getElementById('auction-area').style.display = 'none';
         document.getElementById('question-area').style.display = 'block';
         startTimer();
@@ -314,7 +171,7 @@
                 allBtns.forEach(btn => btn.disabled = true);
                 
                 if (currentMode === 'normal') {
-                    document.getElementById('q-content').innerHTML += '<p style="color:var(--gold);">تمت الإجابة! بانتظار الفريق الآخر...</p>';
+                    document.getElementById('q-content').innerHTML += '<p style="color:var(--gold);">تمت إجابة فريقك! بانتظار الفريق الآخر...</p>';
                 } else {
                     clearInterval(timerInt);
                 }
@@ -334,9 +191,10 @@
                 clearInterval(timerInt); 
                 document.getElementById('options').innerHTML = '<h3 style="color:var(--red);">انتهى الوقت! ⏳</h3>';
                 
-                if (currentMode === 'normal' && isLeader) {
+                // الإرسال التلقائي للتايم أوت
+                if (currentMode === 'normal') {
                     socket.emit('submitAnswer', { roomID: myInfo.room, team: myInfo.team, answer: "TIMEOUT_ALL" });
-                } else if (currentMode === 'auction' && isLeader && myInfo.team === currentWinner) {
+                } else if (currentMode === 'auction' && myInfo.team === currentWinner) {
                     socket.emit('submitAnswer', { roomID: myInfo.room, team: myInfo.team, answer: "TIMEOUT" });
                 }
             } 
@@ -344,8 +202,15 @@
     }
 
     socket.on('teamAnswered', d => {
-        if (d.team !== myInfo.team && currentMode === 'normal') {
-            document.getElementById('q-content').innerHTML += `<p style="color:var(--main); font-size:14px;">الفريق الخصم قام بالإجابة...</p>`;
+        if (currentMode === 'normal') {
+            if (d.team !== myInfo.team) {
+                if (!document.getElementById('q-content').innerHTML.includes('الخصم قام بالإجابة')) {
+                    document.getElementById('q-content').innerHTML += `<p style="color:var(--main); font-size:14px;">الفريق الخصم قام بالإجابة...</p>`;
+                }
+            } else {
+                const allBtns = document.querySelectorAll('.btn-game');
+                allBtns.forEach(btn => btn.disabled = true);
+            }
         }
     });
 
@@ -377,8 +242,8 @@
         
         document.getElementById('result-status').innerText = d.isTimeout ? "انتهى الوقت ⏳" : "النتيجة";
         document.getElementById('result-detail').innerHTML = `
-            الفريق A: ${d.resA ? '✅ صح' : '❌ خطأ'} <br>
-            الفريق B: ${d.resB ? '✅ صح' : '❌ خطأ'} <br>
+            الفريق A: ${d.ansA === "TIMEOUT" || !d.ansA ? '⏳' : (d.resA ? '✅ صح' : '❌ خطأ')} <br>
+            الفريق B: ${d.ansB === "TIMEOUT" || !d.ansB ? '⏳' : (d.resB ? '✅ صح' : '❌ خطأ')} <br>
             الجواب الصحيح: <span style="color:var(--green)">${d.correctAns}</span>
         `;
 
@@ -388,11 +253,12 @@
             ov.style.display = 'none'; 
             document.getElementById('question-area').style.display = 'none'; 
             document.getElementById('auction-area').style.display = 'block'; 
-            showLeaderControls();
             
-            // انتقال تلقائي إذا كان تايم أوت
-            if (d.isTimeout && isLeader) {
-                socket.emit('requestAuction', { roomID: myInfo.room });
+            if (d.isTimeout) {
+                document.getElementById('hint-text').innerText = "جاري الانتقال للسؤال التالي تلقائياً 🚀...";
+                document.getElementById('leader-controls').style.display = 'none';
+            } else {
+                showLeaderControls();
             }
         }, 4000);
     });
@@ -413,32 +279,14 @@
             ov.style.display = 'none'; 
             document.getElementById('question-area').style.display = 'none'; 
             document.getElementById('auction-area').style.display = 'block'; 
-            showLeaderControls();
             
-            if (d.isTimeout && isLeader) socket.emit('requestAuction', { roomID: myInfo.room });
-        }, 4000);
-    });
-
-    // الانتقال التلقائي الصريح عند انتهاء الوقت
-    socket.on('timeOutAutoNext', d => {
-        clearInterval(timerInt); document.getElementById('timer-container').style.display = 'none';
-        playSnd('wrong');
-        
-        const ov = document.getElementById('result-overlay');
-        ov.className = 'animate__animated shakeX'; ov.style.display = 'block'; 
-        ov.style.borderColor = 'var(--gold)'; ov.style.color = 'var(--gold)';
-        document.getElementById('result-status').innerText = "انتهى الوقت للجميع ⏳";
-        document.getElementById('result-detail').innerText = "الإجابة الصحيحة: " + d.correctAns;
-
-        setTimeout(() => {
-            ov.style.display = 'none';
-            if (isLeader) socket.emit('requestAuction', { roomID: myInfo.room });
-            else {
-                document.getElementById('question-area').style.display = 'none';
-                document.getElementById('auction-area').style.display = 'block';
-                document.getElementById('hint-text').innerText = "جاري الانتقال للسؤال التالي تلقائياً...";
+            if (d.isTimeout) {
+                document.getElementById('hint-text').innerText = "جاري الانتقال للسؤال التالي تلقائياً 🚀...";
+                document.getElementById('leader-controls').style.display = 'none';
+            } else {
+                showLeaderControls();
             }
-        }, 3000);
+        }, 4000);
     });
 
     function showLeaderControls() {
@@ -472,8 +320,8 @@
         playSnd('correct');
     });
 </script>
-</body>
 </html>
+
 
 
 
