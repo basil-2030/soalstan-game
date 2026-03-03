@@ -12,14 +12,15 @@ app.use(express.static(__dirname));
 
 let questionBank = [];
 
+// نظام الحماية لقراءة الأسئلة
 try {
     const data = fs.readFileSync(path.join(__dirname, 'questions.json'), 'utf8');
     questionBank = JSON.parse(data);
     console.log(`✅ تم تحميل ${questionBank.length} سؤال بنجاح!`);
 } catch (e) {
-    console.error("❌ خطأ في ملف questions.json! تأكد من الفواصل والأقواس:", e.message);
+    console.error("🚨 خطأ في ملف الأسئلة: ", e.message); 
     questionBank = [{
-        "type": "text", "hint": "تنبيه للقائد", "q": "يوجد خطأ (فاصلة أو قوس) في ملف questions.json، يرجى إصلاحه!", "options": ["حسناً", "جاري التعديل", "تم", "علم"], "a": "حسناً"
+        "type": "text", "hint": "تنبيه للقائد", "q": "يوجد خطأ في ملف الأسئلة، يرجى مراجعته.", "options": ["علم", "جاري التصحيح", "حسناً", "تم"], "a": "علم"
     }];
 }
 
@@ -27,9 +28,9 @@ let roomsData = {};
 
 io.on('connection', (socket) => {
     socket.on('joinRoom', (data) => {
-        const { roomID, settings, team } = data;
+        const { roomID, settings, team, teamAName, teamBName } = data;
         
-        // عزل الغرف بشكل تام
+        // عزل الغرف تماماً عن بعضها
         if(socket.currentRoom && socket.currentRoom !== roomID) {
             socket.leave(socket.currentRoom);
         }
@@ -37,12 +38,11 @@ io.on('connection', (socket) => {
         socket.join(roomID);
         socket.currentRoom = roomID;
 
-        // إنشاء الغرفة وتوزيع القادة بشكل صحيح
         if (!roomsData[roomID]) {
             roomsData[roomID] = {
                 teams: { 
-                    'A': { points: 100, leader: (team === 'A' ? socket.id : null) }, 
-                    'B': { points: 100, leader: (team === 'B' ? socket.id : null) } 
+                    'A': { points: 100, leader: null, name: teamAName || "فريق A" }, 
+                    'B': { points: 100, leader: null, name: teamBName || "فريق B" } 
                 },
                 settings: settings || { roundTime: 30, maxRounds: 10 },
                 currentQuestion: null, 
@@ -50,22 +50,30 @@ io.on('connection', (socket) => {
                 turnTaken: false,
                 firstTeam: null
             };
-        } else if (team && !roomsData[roomID].teams[team].leader) {
-            roomsData[roomID].teams[team].leader = socket.id;
+        }
+        
+        const room = roomsData[roomID];
+
+        // تعيين القائد
+        if (team && !room.teams[team].leader) {
+            room.teams[team].leader = socket.id;
         }
 
-        const room = roomsData[roomID];
         const isLeader = (socket.id === room.teams[team].leader);
 
         socket.emit('init', { 
             pointsA: room.teams['A'].points, 
             pointsB: room.teams['B'].points, 
+            teamAName: room.teams['A'].name,
+            teamBName: room.teams['B'].name,
             isLeader: isLeader, 
             settings: room.settings 
         });
+
+        io.to(roomID).emit('updateScores', { pointsA: room.teams['A'].points, pointsB: room.teams['B'].points });
     });
 
-    // جولة جديدة (تزيد الجولة)
+    // طلب جولة جديدة (تزيد الجولة)
     socket.on('requestAuction', () => {
         const rID = socket.currentRoom;
         const room = roomsData[rID];
@@ -80,11 +88,11 @@ io.on('connection', (socket) => {
         room.currentQuestion = q; 
         room.turnTaken = false;
         room.firstTeam = null;
-        // isChange = false عشان يتصفر المزاد
+        
         io.to(rID).emit('startAuction', { hint: q.hint, fullQuestion: q, roundNumber: room.currentRound, isChange: false });
     });
 
-    // تغيير السؤال (نفس الجولة ولا يتصفر المزاد)
+    // تغيير السؤال (بدون زيادة الجولة)
     socket.on('changeQuestion', () => {
         const rID = socket.currentRoom;
         const room = roomsData[rID];
@@ -94,17 +102,19 @@ io.on('connection', (socket) => {
         room.currentQuestion = q; 
         room.turnTaken = false;
         room.firstTeam = null;
-        // isChange = true عشان نحافظ على المزاد والجولة
+        
         io.to(rID).emit('startAuction', { hint: q.hint, fullQuestion: q, roundNumber: room.currentRound, isChange: true });
     });
 
+    // معالجة الإجابات وانتهاء الوقت
     socket.on('submitAnswer', (data) => {
         const rID = socket.currentRoom;
         const room = roomsData[rID];
         if(!room || !room.currentQuestion) return;
-
+        
         if (room.turnTaken && data.team === room.firstTeam) return;
 
+        // معالجة انتهاء الوقت بشكل سليم
         if (data.answer === "TIMEOUT") {
             room.teams[data.team].points -= 30;
             if (!room.turnTaken) {
@@ -116,8 +126,9 @@ io.on('connection', (socket) => {
             } else {
                 const correctAns = room.currentQuestion.a;
                 room.currentQuestion = null;
-                io.to(rID).emit('roundResult', { isCorrect: false, team: data.team, points: room.teams[data.team].points, name: data.name, correctAns: correctAns, isTimeout: true });
+                io.to(rID).emit('roundResult', { isCorrect: false, team: data.team, points: room.teams[data.team].points, correctAns: correctAns, isTimeout: true });
             }
+            io.to(rID).emit('updateScores', { pointsA: room.teams['A'].points, pointsB: room.teams['B'].points });
             return;
         }
 
@@ -141,12 +152,19 @@ io.on('connection', (socket) => {
                 io.to(rID).emit('roundResult', { isCorrect: false, team: data.team, points: room.teams[data.team].points, name: data.name, correctAns: correctAns });
             }
         }
+        io.to(rID).emit('updateScores', { pointsA: room.teams['A'].points, pointsB: room.teams['B'].points });
     });
 
     socket.on('placeBid', (d) => io.to(socket.currentRoom).emit('updateBid', d));
     socket.on('winAuction', (d) => io.to(socket.currentRoom).emit('revealQuestion', d));
-
-    // مسح القائد في حال التحديث أو الخروج عشان ما يعلق
+    
+    socket.on('leaveRoom', () => {
+        if(socket.currentRoom) {
+            socket.leave(socket.currentRoom);
+            socket.currentRoom = null;
+        }
+    });
+    
     socket.on('disconnect', () => {
         for (let rID in roomsData) {
             let room = roomsData[rID];
