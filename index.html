@@ -1,3 +1,143 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>سؤالستان - النسخة الاحترافية</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/animate.css/4.1.1/animate.min.css"/>
+    <style>
+        :root { --main: #a855f7; --gold: #facc15; --red: #ef4444; --green: #22c55e; }
+        body { margin: 0; background: #0b0e14; color: white; font-family: 'Segoe UI', sans-serif; display: flex; align-items: center; justify-content: center; overflow-x: hidden; min-height: 100vh; }
+        .bg-stars { position: fixed; top: 0; left: 0; width: 100%; height: 100%; z-index: -1; background: radial-gradient(circle, #1e1b4b 0%, #020617 100%); }
+        
+        .card { background: rgba(15, 23, 42, 0.95); border: 3px solid var(--main); border-radius: 30px; width: 92vw; max-width: 500px; min-height: 80vh; padding: 20px; position: relative; display: flex; flex-direction: column; align-items: center; box-shadow: 0 0 30px rgba(168, 85, 247, 0.2); margin: 15px 0; }
+        
+        #timer-container { position: absolute; top: 0; left: 0; width: 100%; height: 6px; background: rgba(255,255,255,0.1); display: none; z-index: 1000; }
+        #timer-bar { height: 100%; width: 100%; background: var(--main); transition: 1s linear; }
+
+        .btn-game { background: none; border: 2px solid var(--gold); color: var(--gold); padding: 10px 20px; border-radius: 12px; font-size: 18px; font-weight: bold; cursor: pointer; transition: 0.3s; width: 100%; margin-top: 10px; }
+        .btn-game:hover { background: var(--gold); color: black; }
+        
+        .input-box { background: rgba(255,255,255,0.05); border: 1px solid var(--main); color: white; padding: 10px; border-radius: 12px; text-align: center; font-size: 16px; width: 100%; margin: 5px 0; box-sizing: border-box; }
+        .select-box { background: #1e1b4b; border: 2px solid var(--main); color: white; padding: 10px; border-radius: 12px; text-align: center; font-size: 16px; width: 100%; margin: 5px 0; cursor: pointer; outline: none; appearance: none; -webkit-appearance: none; }
+        .select-box option { background-color: #0b0e14; color: white; }
+
+        .how-to-play { margin-top: 25px; padding: 15px; background: rgba(255, 255, 255, 0.03); border-radius: 15px; border: 1px solid rgba(168, 85, 247, 0.3); width: 90%; text-align: right; }
+        .how-to-play ul { padding-right: 20px; margin: 5px 0; }
+        .how-to-play li { font-size: 13px; color: rgba(255,255,255,0.8); margin-bottom: 5px; }
+
+        #result-overlay { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); width: 85%; padding: 25px; border-radius: 20px; display: none; text-align: center; z-index: 200; backdrop-filter: blur(15px); border: 4px solid; background: rgba(0,0,0,0.95); box-sizing: border-box; }
+        .q-image { max-width: 100%; max-height: 250px; border-radius: 15px; margin-bottom: 10px; border: 2px solid var(--main); object-fit: contain; }
+
+        .top-info-bar { display: flex; justify-content: space-between; align-items: center; background: rgba(0,0,0,0.5); padding: 10px; border-radius: 15px; width: 100%; position: relative; margin-bottom: 10px; box-sizing: border-box; }
+        #real-time-clock { position: absolute; left: 50%; transform: translateX(-50%); color: var(--gold); font-weight: bold; font-size: 14px; border: 1px solid rgba(250, 204, 21, 0.3); padding: 2px 8px; border-radius: 8px; white-space: nowrap; }
+        
+        #players-scores { display: flex; flex-wrap: wrap; gap: 8px; justify-content: center; width: 100%; font-size: 14px; margin-top: 5px; }
+        .score-pill { background: rgba(255,255,255,0.1); padding: 5px 12px; border-radius: 8px; font-weight: bold; border: 1px solid rgba(255,255,255,0.2); }
+    </style>
+</head>
+<body>
+
+<div class="bg-stars"></div>
+<div id="timer-container"><div id="timer-bar"></div></div>
+
+<button id="exit-btn" style="position:absolute; top:15px; left:15px; z-index:1001; background:none; color:white; border:1px solid white; padding:5px 12px; border-radius:10px; cursor:pointer; font-size: 12px; display:none;" onclick="exitGame()">⬅ خروج</button>
+
+<div id="join-screen" class="card">
+    <h1 style="font-size: 45px; color: var(--main); text-shadow: 0 0 15px var(--main); margin: 10px 0;">سؤالستان</h1>
+    
+    <div style="width: 100%; max-width: 320px;">
+        <input type="text" id="player-name" class="input-box" placeholder="اكتب اسمك">
+        <div style="display: flex; gap: 5px;">
+            <input type="text" id="room-id" class="input-box" placeholder="كود الغرفة">
+            <button class="btn-game" style="width: 50px; margin-top: 5px; padding: 5px;" onclick="generateCode()">🎲</button>
+        </div>
+        
+        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 10px;">
+            <div>
+                <label style="font-size:11px; color: var(--gold);">وقت الجولة</label>
+                <select id="set-time" class="select-box">
+                    <option value="15">15 ثانية</option>
+                    <option value="20" selected>20 ثانية</option>
+                    <option value="30">30 ثانية</option>
+                    <option value="45">45 ثانية</option>
+                    <option value="60">60 ثانية</option>
+                </select>
+            </div>
+            <div>
+                <label style="font-size:11px; color: var(--gold);">عدد الجولات</label>
+                <select id="set-rounds" class="select-box">
+                    <option value="5">5 جولات</option>
+                    <option value="10" selected>10 جولات</option>
+                    <option value="20">20 جولة</option>
+                </select>
+            </div>
+        </div>
+
+        <button class="btn-game" style="background:var(--main); color:white; border:none;" onclick="joinGame()">دخول اللعبة 🚀</button>
+    </div>
+
+    <div class="how-to-play">
+        <h3 style="color: var(--gold); margin: 0 0 10px 0; font-size: 16px;">كيف تلعب؟ 📖</h3>
+        <ul>
+            <li>العب ضد أصدقائك بنظام النقاط الفردي.</li>
+            <li>9 جولات للجميع، وجولة مزاد واحدة!</li>
+            <li>الصح يكسبك 50 نقطة والخطأ يخصم 30.</li>
+            <li>الأول في دخول الغرفة يصبح القائد.</li>
+        </ul>
+    </div>
+</div>
+
+<div id="game-screen" style="display: none; width: 100vw; justify-content: center;">
+    <div class="card">
+        <div id="result-overlay" class="animate__animated">
+            <h1 id="result-status" style="font-size:35px;"></h1>
+            <p id="result-detail" style="font-size:18px;"></p>
+        </div>
+
+        <div class="top-info-bar">
+            <div id="round-counter" style="color: var(--gold); font-weight: bold; font-size: 13px;">جولة: <span id="current-round">1</span>/<span id="total-rounds">10</span></div>
+            <div id="real-time-clock">00:00:00</div>
+            <div onclick="copyRoomCode()" style="font-size: 12px; cursor: pointer; border:1px solid rgba(255,255,255,0.2); padding: 2px 5px; border-radius: 5px;"><span id="display-room-id">---</span> 📋</div>
+        </div>
+        
+        <div id="players-scores"></div>
+
+        <div style="display: flex; justify-content: space-between; align-items: center; width: 100%; margin: 10px 0;">
+            <div id="leader-tag" style="display:none; color: var(--gold); font-weight: bold; font-size: 12px;">👑 أنت القائد</div>
+            <div id="my-team-display" style="color: white; font-weight: bold; font-size: 13px;"></div>
+        </div>
+
+        <div id="win-screen" class="animate__animated zoomIn" style="display:none; text-align:center; width: 100%;">
+            <h1 style="font-size: 35px; color: var(--gold); text-shadow: 0 0 20px var(--gold);">🏆 انتهت اللعبة!</h1>
+            <div id="winner-text" style="color: white; margin: 20px 0;"></div>
+            <button class="btn-game" onclick="location.reload()">لعب مرة أخرى 🔄</button>
+        </div>
+        
+        <div id="auction-area" style="text-align: center; width: 100%; margin-top: 5px;">
+            <div id="players-list" style="margin-bottom: 15px; color: var(--gold); font-size: 14px; padding: 10px; border: 1px dashed var(--main); border-radius: 10px;"></div>
+            
+            <h2 id="hint-text" style="font-size: 22px; padding: 10px;">بانتظار القائد...</h2>
+            
+            <div id="leader-controls" style="display:none; margin-top: 10px; gap: 5px; justify-content: center;">
+                <button class="btn-game" style="width: 48%; border-color: var(--green); color: var(--green);" onclick="socket.emit('requestAuction')">سؤال جديد 🚀</button>
+                <button class="btn-game" style="width: 48%; border-color: #6b7280; color: #9ca3af;" onclick="socket.emit('changeQuestion')">تغيير السؤال 🔄</button>
+            </div>
+            
+            <div id="bid-ui" style="display:none; margin-top: 10px;">
+                <p>المزاد: <span id="current-bid">0</span></p>
+                <button class="btn-game" onclick="bid()">زايد +10 🔨</button>
+                <button id="win-btn" class="btn-game" style="display:none; background:white; color:black;" onclick="submitAuctionWinner()">إرسال المزايدة ✅</button>
+            </div>
+        </div>
+
+        <div id="question-area" style="display: none; text-align: center; width: 100%;">
+            <div id="q-content"></div>
+            <div id="options" style="display: grid; grid-template-columns: 1fr; gap: 10px; margin-top: 15px; width: 100%;"></div>
+        </div>
+    </div>
+</div>
+
 <script src="/socket.io/socket.io.js"></script>
 <script>
     const sounds = { 
@@ -9,8 +149,9 @@
     function playSnd(s) { sounds[s].play().catch(()=>{}); }
 
     const socket = io();
-    let myInfo = {}, isLeader = false, currentQ = {}, timerInt, roomSettings = {}, currentWinner = "";
+    let myInfo = {}, isLeader = false, currentQ = {}, timerInt, roomSettings = {};
     let currentHighestBidder = "", currentMode = ""; 
+    let allPlayers = {};
 
     function updateClock() {
         const now = new Date();
@@ -26,19 +167,16 @@
     
     function copyRoomCode() { navigator.clipboard.writeText(myInfo.room); alert("تم نسخ الكود!"); }
 
-    function join(t) {
+    function joinGame() {
         playSnd('click');
         const n = document.getElementById('player-name').value;
         const r = document.getElementById('room-id').value;
         const mt = parseInt(document.getElementById('set-time').value);
         const mr = parseInt(document.getElementById('set-rounds').value);
-        
-        const teamAName = document.getElementById('team-a-name') ? document.getElementById('team-a-name').value || "فريق A" : "فريق A";
-        const teamBName = document.getElementById('team-b-name') ? document.getElementById('team-b-name').value || "فريق B" : "فريق B";
 
-        if(!n || !r) return alert("أكمل البيانات");
-        myInfo = { name: n, room: r, team: t };
+        if(!n || !r) return alert("الرجاء كتابة الاسم وكود الغرفة!");
         
+        myInfo = { name: n, room: r };
         document.getElementById('display-room-id').innerText = r;
         document.getElementById('total-rounds').innerText = mr; 
         
@@ -46,7 +184,7 @@
         document.getElementById('game-screen').style.display = 'flex';
         document.getElementById('exit-btn').style.display = 'block'; 
         
-        socket.emit('joinRoom', { roomID: r, name: n, team: t, teamAName, teamBName, settings: { roundTime: mt, maxRounds: mr } });
+        socket.emit('joinRoom', { roomID: r, name: n, settings: { roundTime: mt, maxRounds: mr } });
     }
 
     function exitGame() {
@@ -59,34 +197,45 @@
         isLeader = false;
         document.getElementById('leader-tag').style.display = 'none'; 
         document.getElementById('leader-controls').style.display = 'none'; 
-        document.getElementById('hint-text').innerText = "بانتظار بدء اللعبة...";
+        document.getElementById('hint-text').innerText = "بانتظار القائد...";
     }
 
-    socket.on('init', d => {
-        isLeader = d.isLeader; roomSettings = d.settings;
-        if(document.getElementById('display-name-A')) document.getElementById('display-name-A').innerText = d.teamAName;
-        if(document.getElementById('display-name-B')) document.getElementById('display-name-B').innerText = d.teamBName;
-        if(document.getElementById('my-team-display')) document.getElementById('my-team-display').innerText = "فريقك: " + (myInfo.team === 'A' ? d.teamAName : d.teamBName);
+    // تحديث الشاشة بناءً على اللاعبين الجدد
+    socket.on('updateState', d => {
+        allPlayers = d.players;
+        isLeader = (d.leader === socket.id);
+        if (d.settings) roomSettings = d.settings;
+        
+        // تحديث النقاط العلوية
+        const scoresDiv = document.getElementById('players-scores');
+        scoresDiv.innerHTML = '';
+        let listText = [];
+        
+        for(let id in allPlayers) {
+            let p = allPlayers[id];
+            let isMe = (id === socket.id);
+            scoresDiv.innerHTML += `<div class="score-pill" style="${isMe ? 'color:var(--gold)' : ''}">${p.name}: <span>${p.points}</span></div>`;
+            listText.push(p.name + (d.leader === id ? ' 👑' : ''));
+        }
+        
+        document.getElementById('players-list').innerHTML = "👥 المتواجدين: " + listText.join(' ، ');
 
         if (isLeader) { 
             document.getElementById('leader-tag').style.display = 'block'; 
             document.getElementById('leader-controls').style.display = 'flex'; 
-            document.getElementById('hint-text').innerText = "أنت القائد! ابدأ الجولة الآن 🚀";
+            if(document.getElementById('hint-text').innerText.includes("بانتظار القائد")) {
+                document.getElementById('hint-text').innerText = "أنت القائد! ابدأ الجولة الآن 🚀";
+            }
         } else {
             document.getElementById('leader-tag').style.display = 'none'; 
             document.getElementById('leader-controls').style.display = 'none'; 
-            document.getElementById('hint-text').innerText = "بانتظار القائد لبدء اللعبة...";
+            if(document.getElementById('hint-text').innerText.includes("أنت القائد")) {
+                document.getElementById('hint-text').innerText = "بانتظار القائد לבدء اللعبة...";
+            }
         }
-        document.getElementById('pts-A').innerText = d.pointsA; 
-        document.getElementById('pts-B').innerText = d.pointsB;
     });
 
-    socket.on('updateScores', d => {
-        document.getElementById('pts-A').innerText = d.pointsA; 
-        document.getElementById('pts-B').innerText = d.pointsB;
-    });
-
-    // ==================== الجولات العادية ====================
+    // ==================== الجولات العادية للجميع ====================
     socket.on('startNormalRound', d => {
         currentMode = 'normal';
         currentQ = d.fullQuestion; 
@@ -95,8 +244,11 @@
         document.getElementById('question-area').style.display = 'block';
         
         const content = document.getElementById('q-content'); content.innerHTML = '';
-        const imgSrc = currentQ.image || currentQ.img;
-        if (imgSrc) content.innerHTML += `<img src="${imgSrc}" class="q-image">`;
+        
+        // حل مشكلة الصور: يخفي الأيقونة المكسورة لو كان الرابط خطأ
+        const imgSrc = currentQ.image || currentQ.img || currentQ.url;
+        if (imgSrc) content.innerHTML += `<img src="${imgSrc}" class="q-image" onerror="this.style.display='none'">`;
+        
         content.innerHTML += `<h1 style="font-size: 24px; color: var(--main); margin: 0;">${currentQ.q}</h1>`;
         
         renderOptions(currentQ.options, true); 
@@ -111,7 +263,7 @@
         document.getElementById('auction-area').style.display = 'block';
         document.getElementById('question-area').style.display = 'none'; 
         document.getElementById('win-screen').style.display = 'none'; 
-        document.getElementById('hint-text').innerHTML = `🌟 جولة مزاد 🌟<br>تلميح: ${d.hint}`;
+        document.getElementById('hint-text').innerHTML = `🌟 جولة المزاد السرية 🌟<br>تلميح: ${d.hint}`;
         
         if (!d.isChange) { document.getElementById('current-bid').innerText = '0'; currentHighestBidder = ""; }
         
@@ -121,41 +273,43 @@
             document.getElementById('leader-controls').style.display = 'none'; 
         } else {
             document.getElementById('bid-ui').style.display = 'none'; 
-            document.getElementById('leader-controls').style.display = 'none'; 
         }
     });
 
     function bid() { 
         playSnd('click'); 
-        let myCurrentPoints = parseInt(document.getElementById(`pts-${myInfo.team}`).innerText);
+        let myCurrentPoints = allPlayers[socket.id].points;
         let currentBidAmount = parseInt(document.getElementById('current-bid').innerText);
         if(currentBidAmount + 10 > myCurrentPoints) return alert("❌ نقاطك لا تكفي للمزايدة!");
-        socket.emit('placeBid', { roomID: myInfo.room, team: myInfo.team, name: myInfo.name, amount: currentBidAmount + 10 }); 
+        socket.emit('placeBid', { roomID: myInfo.room, id: socket.id, name: allPlayers[socket.id].name, amount: currentBidAmount + 10 }); 
     }
     
     socket.on('updateBid', d => { 
         playSnd('bid'); 
         document.getElementById('current-bid').innerText = d.amount; 
-        currentHighestBidder = d.team; 
+        currentHighestBidder = d.id; 
         if(isLeader) document.getElementById('win-btn').style.display = 'inline-block'; 
     });
 
     function submitAuctionWinner() {
         if(!currentHighestBidder) return alert("يجب المزايدة أولاً!");
-        socket.emit('winAuction', {roomID: myInfo.room, question: currentQ, winningTeam: currentHighestBidder});
+        socket.emit('winAuction', {roomID: myInfo.room, question: currentQ, winningId: currentHighestBidder});
     }
 
     socket.on('revealAuctionQuestion', d => {
-        currentWinner = d.winningTeam; 
+        currentMode = 'auction_play';
         const content = document.getElementById('q-content'); content.innerHTML = '';
-        const imgSrc = d.question.image || d.question.img;
-        if (imgSrc) content.innerHTML += `<img src="${imgSrc}" class="q-image">`;
+        
+        const imgSrc = d.question.image || d.question.img || d.question.url;
+        if (imgSrc) content.innerHTML += `<img src="${imgSrc}" class="q-image" onerror="this.style.display='none'">`;
+        
         content.innerHTML += `<h1 style="font-size: 24px; color: var(--main); margin: 0;">${d.question.q}</h1>`;
         
-        renderOptions(d.question.options, myInfo.team === currentWinner); 
+        let amIWinner = (socket.id === d.winningId);
+        renderOptions(d.question.options, amIWinner); 
         document.getElementById('auction-area').style.display = 'none';
         document.getElementById('question-area').style.display = 'block';
-        startTimer();
+        startTimer(d.winningId);
     });
 
     // ==================== الوظائف المشتركة ====================
@@ -171,17 +325,17 @@
                 allBtns.forEach(btn => btn.disabled = true);
                 
                 if (currentMode === 'normal') {
-                    document.getElementById('q-content').innerHTML += '<p style="color:var(--gold);">تمت إجابة فريقك! بانتظار الفريق الآخر...</p>';
+                    document.getElementById('q-content').innerHTML += '<p style="color:var(--gold);">تم حفظ إجابتك، بانتظار البقية...</p>';
                 } else {
                     clearInterval(timerInt);
                 }
-                socket.emit('submitAnswer', { roomID: myInfo.room, team: myInfo.team, answer: o, name: myInfo.name }); 
+                socket.emit('submitAnswer', { roomID: myInfo.room, answer: o }); 
             };
             opts.appendChild(b);
         });
     }
 
-    function startTimer() {
+    function startTimer(auctionWinnerId = null) {
         document.getElementById('timer-container').style.display = 'block';
         let timeLeft = 100; let step = 100 / (roomSettings.roundTime * 10);
         timerInt = setInterval(() => { 
@@ -191,48 +345,48 @@
                 clearInterval(timerInt); 
                 document.getElementById('options').innerHTML = '<h3 style="color:var(--red);">انتهى الوقت! ⏳</h3>';
                 
-                // الإرسال التلقائي للتايم أوت
-                if (currentMode === 'normal') {
-                    socket.emit('submitAnswer', { roomID: myInfo.room, team: myInfo.team, answer: "TIMEOUT_ALL" });
-                } else if (currentMode === 'auction' && myInfo.team === currentWinner) {
-                    socket.emit('submitAnswer', { roomID: myInfo.room, team: myInfo.team, answer: "TIMEOUT" });
+                if (currentMode === 'normal' && isLeader) {
+                    socket.emit('submitAnswer', { roomID: myInfo.room, answer: "TIMEOUT_ALL" });
+                } else if (currentMode === 'auction_play' && socket.id === auctionWinnerId) {
+                    socket.emit('submitAnswer', { roomID: myInfo.room, answer: "TIMEOUT" });
                 }
             } 
         }, 100);
     }
 
-    socket.on('teamAnswered', d => {
+    socket.on('playerAnswered', d => {
         if (currentMode === 'normal') {
-            if (d.team !== myInfo.team) {
-                if (!document.getElementById('q-content').innerHTML.includes('الخصم قام بالإجابة')) {
-                    document.getElementById('q-content').innerHTML += `<p style="color:var(--main); font-size:14px;">الفريق الخصم قام بالإجابة...</p>`;
-                }
-            } else {
-                const allBtns = document.querySelectorAll('.btn-game');
-                allBtns.forEach(btn => btn.disabled = true);
+            if (d.id !== socket.id && !document.getElementById('q-content').innerHTML.includes(d.name)) {
+                document.getElementById('q-content').innerHTML += `<p style="color:var(--main); font-size:12px;">${d.name} قام بالإجابة ✓</p>`;
             }
         }
     });
 
-    // انتقال السؤال في المزاد فقط
+    // انتقال السؤال للبقية بعد خطأ الفائز بالمزاد
     socket.on('passTurn', d => {
         playSnd('wrong');
-        currentWinner = d.toTeam; 
+        currentMode = 'normal'; // نحولها لفرصة للجميع
+        
         const ov = document.getElementById('result-overlay');
         ov.className = 'animate__animated shakeX'; ov.style.display = 'block'; 
         ov.style.borderColor = 'var(--red)'; ov.style.color = 'var(--red)';
         
         document.getElementById('result-status').innerText = d.isTimeout ? "انتهى الوقت! ⏳" : "خطأ! ❌";
-        document.getElementById('result-detail').innerText = `انتقلت الفرصة لفريق ${d.toTeam} مع حذف خيار!`;
+        document.getElementById('result-detail').innerText = `تم إتاحة السؤال للبقية مع حذف خيار!`;
         
         setTimeout(() => {
             ov.style.display = 'none';
-            if (myInfo.team === d.toTeam) { renderOptions(d.newOptions, true); startTimer(); } 
-            else { document.getElementById('options').innerHTML = '<h4 style="color:var(--gold);">دور الفريق الخصم حالياً...</h4>'; startTimer(); }
+            if (socket.id !== d.excludedId) { 
+                renderOptions(d.newOptions, true); 
+                startTimer(); 
+            } else { 
+                document.getElementById('options').innerHTML = '<h4 style="color:var(--gold);">تم حرمانك من هذه المحاولة...</h4>'; 
+                startTimer(); 
+            }
         }, 2500);
     });
 
-    // نتيجة الجولة العادية
+    // نتيجة الجولة العادية للجميع
     socket.on('normalRoundResult', d => {
         clearInterval(timerInt); document.getElementById('timer-container').style.display = 'none';
         
@@ -241,21 +395,31 @@
         ov.style.borderColor = 'var(--gold)'; ov.style.color = 'var(--gold)';
         
         document.getElementById('result-status').innerText = d.isTimeout ? "انتهى الوقت ⏳" : "النتيجة";
+        
+        // عرض نتيجة كل لاعب
+        let resHtml = "";
+        let iGotItRight = false;
+        for(let pid in d.results) {
+            let p = d.results[pid];
+            let mark = p.ans === "TIMEOUT" || !p.ans ? '⏳' : (p.isCorrect ? '✅' : '❌');
+            resHtml += `<div style="font-size:14px; margin:3px 0;">${p.name}: ${mark}</div>`;
+            if (pid === socket.id && p.isCorrect) iGotItRight = true;
+        }
+
         document.getElementById('result-detail').innerHTML = `
-            الفريق A: ${d.ansA === "TIMEOUT" || !d.ansA ? '⏳' : (d.resA ? '✅ صح' : '❌ خطأ')} <br>
-            الفريق B: ${d.ansB === "TIMEOUT" || !d.ansB ? '⏳' : (d.resB ? '✅ صح' : '❌ خطأ')} <br>
+            <div style="background: rgba(0,0,0,0.4); padding:10px; border-radius:10px; margin-bottom:10px;">${resHtml}</div>
             الجواب الصحيح: <span style="color:var(--green)">${d.correctAns}</span>
         `;
 
-        if(d.resA || d.resB) playSnd('correct'); else playSnd('wrong');
+        if(iGotItRight) playSnd('correct'); else playSnd('wrong');
 
         setTimeout(() => { 
             ov.style.display = 'none'; 
             document.getElementById('question-area').style.display = 'none'; 
             document.getElementById('auction-area').style.display = 'block'; 
             
-            if (d.isTimeout) {
-                document.getElementById('hint-text').innerText = "جاري الانتقال للسؤال التالي تلقائياً 🚀...";
+            if (d.isTimeout && isLeader) {
+                document.getElementById('hint-text').innerText = "الانتقال للسؤال التالي 🚀...";
                 document.getElementById('leader-controls').style.display = 'none';
             } else {
                 showLeaderControls();
@@ -272,20 +436,14 @@
         ov.style.color = d.isCorrect ? 'var(--green)' : 'var(--red)';
         
         document.getElementById('result-status').innerText = d.isTimeout ? "انتهى الوقت ⏳" : (d.isCorrect ? "✅ إجابة صحيحة" : "❌ إجابة خاطئة");
-        document.getElementById('result-detail').innerText = "الإجابة الصحيحة: " + d.correctAns;
+        document.getElementById('result-detail').innerText = `${d.name} ${d.isCorrect ? 'أصاب الهدف!' : 'أخطأ الهدف!'}\nالإجابة الصحيحة: ${d.correctAns}`;
         playSnd(d.isCorrect ? 'correct' : 'wrong');
 
         setTimeout(() => { 
             ov.style.display = 'none'; 
             document.getElementById('question-area').style.display = 'none'; 
             document.getElementById('auction-area').style.display = 'block'; 
-            
-            if (d.isTimeout) {
-                document.getElementById('hint-text').innerText = "جاري الانتقال للسؤال التالي تلقائياً 🚀...";
-                document.getElementById('leader-controls').style.display = 'none';
-            } else {
-                showLeaderControls();
-            }
+            showLeaderControls();
         }, 4000);
     });
 
@@ -305,23 +463,23 @@
         document.getElementById('timer-container').style.display = 'none';
         document.getElementById('win-screen').style.display = 'block';
         
-        const nameA = document.getElementById('display-name-A').innerText;
-        const nameB = document.getElementById('display-name-B').innerText;
-        const winnerName = d.pointsA > d.pointsB ? nameA : (d.pointsB > d.pointsA ? nameB : "تعادل!");
-        
-        document.getElementById('winner-text').innerHTML = `
-            <div style="background: rgba(0,0,0,0.5); border: 2px solid var(--main); padding: 15px; border-radius: 15px;">
-                <div style="color: #3498db; margin-bottom: 10px;">🔵 ${nameA}: ${d.pointsA} نقطة</div>
-                <div style="color: #e67e22; margin-bottom: 10px;">🟠 ${nameB}: ${d.pointsB} نقطة</div>
-                <hr style="border-color: var(--gold); margin: 15px 0;">
-                <div style="color: var(--gold);">الفائز: ${winnerName} 🏆</div>
-            </div>
-        `;
+        let pArray = Object.values(d.players).sort((a,b) => b.points - a.points);
+        let winner = pArray[0];
+
+        let finalHtml = `<div style="background: rgba(0,0,0,0.5); border: 2px solid var(--main); padding: 15px; border-radius: 15px;">`;
+        pArray.forEach((p, i) => {
+            finalHtml += `<div style="color: ${i===0 ? 'var(--gold)' : 'white'}; font-size:18px; margin-bottom: 8px;">${i+1}. ${p.name}: ${p.points} نقطة</div>`;
+        });
+        finalHtml += `<hr style="border-color: var(--gold); margin: 15px 0;">
+                <div style="color: var(--green); font-size: 24px; font-weight:bold;">البطل: ${winner.name} 🏆</div>
+            </div>`;
+            
+        document.getElementById('winner-text').innerHTML = finalHtml;
         playSnd('correct');
     });
 </script>
+</body>
 </html>
-
 
 
 
