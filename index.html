@@ -59,7 +59,7 @@
             <input type="text" id="team-a-name" class="input-box" placeholder="اسم فريق A (اختياري)">
             <input type="text" id="team-b-name" class="input-box" placeholder="اسم فريق B (اختياري)">
         </div>
-        
+
         <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 10px;">
             <div>
                 <label style="font-size:11px; color: var(--gold);">وقت الجولة</label>
@@ -126,8 +126,8 @@
         <div id="auction-area" style="text-align: center; width: 100%; margin-top: 5px;">
             <h2 id="hint-text" style="font-size: 22px; border: 2px dashed var(--gold); padding: 20px; border-radius: 20px;">بانتظار القائد لبدء اللعب...</h2>
             <div id="leader-controls" style="display:none; margin-top: 10px; gap: 5px; justify-content: center;">
-                <button class="btn-game" style="width: 48%; border-color: var(--green); color: var(--green);" onclick="socket.emit('requestAuction')">سؤال جديد 🚀</button>
-                <button class="btn-game" style="width: 48%; border-color: #6b7280; color: #9ca3af;" onclick="socket.emit('changeQuestion')">تغيير السؤال 🔄</button>
+                <button class="btn-game" style="width: 48%; border-color: var(--green); color: var(--green);" onclick="socket.emit('requestAuction', {roomID: myInfo.room})">سؤال جديد 🚀</button>
+                <button class="btn-game" style="width: 48%; border-color: #6b7280; color: #9ca3af;" onclick="socket.emit('changeQuestion', {roomID: myInfo.room})">تغيير السؤال 🔄</button>
             </div>
             <div id="bid-ui" style="display:none; margin-top: 10px;">
                 <p>المزاد: <span id="current-bid">0</span></p>
@@ -155,26 +155,21 @@
 
     const socket = io();
     let myInfo = {}, isLeader = false, currentQ = {}, timerInt, roomSettings = {}, currentWinner = "";
-    let currentHighestBidder = ""; 
+    let currentHighestBidder = "", currentMode = ""; 
 
     function updateClock() {
         const now = new Date();
-        const timeString = now.toLocaleTimeString('ar-SA', { hour12: false });
         const clockElement = document.getElementById('real-time-clock');
-        if(clockElement) clockElement.innerText = timeString;
+        if(clockElement) clockElement.innerText = now.toLocaleTimeString('ar-SA', { hour12: false });
     }
-    setInterval(updateClock, 1000);
-    updateClock();
+    setInterval(updateClock, 1000); updateClock();
 
     function generateCode() { 
         playSnd('click');
         document.getElementById('room-id').value = "GAME-" + Math.floor(1000 + Math.random() * 9000); 
     }
     
-    function copyRoomCode() { 
-        navigator.clipboard.writeText(myInfo.room); 
-        alert("تم نسخ الكود!"); 
-    }
+    function copyRoomCode() { navigator.clipboard.writeText(myInfo.room); alert("تم نسخ الكود!"); }
 
     function join(t) {
         playSnd('click');
@@ -196,26 +191,23 @@
         document.getElementById('game-screen').style.display = 'flex';
         document.getElementById('exit-btn').style.display = 'block'; 
         
-        socket.emit('joinRoom', { ...myInfo, teamAName, teamBName, settings: { roundTime: mt, maxRounds: mr } });
+        socket.emit('joinRoom', { roomID: r, name: n, team: t, teamAName, teamBName, settings: { roundTime: mt, maxRounds: mr } });
     }
 
     function exitGame() {
         playSnd('click');
-        socket.emit('leaveRoom');
         document.getElementById('game-screen').style.display = 'none';
         document.getElementById('exit-btn').style.display = 'none';
         document.getElementById('join-screen').style.display = 'flex';
-        
         isLeader = false;
         document.getElementById('leader-tag').style.display = 'none'; 
         document.getElementById('leader-controls').style.display = 'none'; 
-        document.getElementById('hint-text').innerText = "بانتظار القائد...";
+        document.getElementById('hint-text').innerText = "بانتظار بدء اللعبة...";
+        socket.emit('leaveRoom');
     }
 
     socket.on('init', d => {
-        isLeader = d.isLeader; 
-        roomSettings = d.settings;
-        
+        isLeader = d.isLeader; roomSettings = d.settings;
         if(document.getElementById('display-name-A')) document.getElementById('display-name-A').innerText = d.teamAName;
         if(document.getElementById('display-name-B')) document.getElementById('display-name-B').innerText = d.teamBName;
         if(document.getElementById('my-team-display')) document.getElementById('my-team-display').innerText = "فريقك: " + (myInfo.team === 'A' ? d.teamAName : d.teamBName);
@@ -223,7 +215,9 @@
         if (isLeader) { 
             document.getElementById('leader-tag').style.display = 'block'; 
             document.getElementById('leader-controls').style.display = 'flex'; 
+            document.getElementById('hint-text').innerText = "أنت القائد! ابدأ الجولة الآن 🚀";
         } else {
+            document.getElementById('hint-text').innerText = "بانتظار القائد لبدء اللعبة...";
             document.getElementById('leader-tag').style.display = 'none'; 
             document.getElementById('leader-controls').style.display = 'none'; 
         }
@@ -236,19 +230,34 @@
         document.getElementById('pts-B').innerText = d.pointsB;
     });
 
-    // جولة المزاد الاستثنائية
+    // ==================== الجولات العادية ====================
+    socket.on('startNormalRound', d => {
+        currentMode = 'normal';
+        currentQ = d.fullQuestion; 
+        document.getElementById('current-round').innerText = d.roundNumber;
+        document.getElementById('auction-area').style.display = 'none';
+        document.getElementById('question-area').style.display = 'block';
+        
+        const content = document.getElementById('q-content'); content.innerHTML = '';
+        const imgSrc = currentQ.image || currentQ.img;
+        if (imgSrc) content.innerHTML += `<img src="${imgSrc}" class="q-image">`;
+        content.innerHTML += `<h1 style="font-size: 24px; color: var(--main); margin: 0;">${currentQ.q}</h1>`;
+        
+        renderOptions(currentQ.options, true); // الجميع يمكنه الإجابة
+        startTimer();
+    });
+
+    // ==================== جولة المزاد ====================
     socket.on('startAuction', d => {
+        currentMode = 'auction';
         currentQ = d.fullQuestion; 
         document.getElementById('current-round').innerText = d.roundNumber;
         document.getElementById('auction-area').style.display = 'block';
         document.getElementById('question-area').style.display = 'none'; 
         document.getElementById('win-screen').style.display = 'none'; 
-        document.getElementById('hint-text').innerText = "تلميح: " + d.hint;
+        document.getElementById('hint-text').innerHTML = `🌟 جولة مزاد 🌟<br>تلميح: ${d.hint}`;
         
-        if (!d.isChange) {
-            document.getElementById('current-bid').innerText = '0';
-            currentHighestBidder = "";
-        }
+        if (!d.isChange) { document.getElementById('current-bid').innerText = '0'; currentHighestBidder = ""; }
         
         if(isLeader) { 
             document.getElementById('bid-ui').style.display = 'block'; 
@@ -259,34 +268,12 @@
         }
     });
 
-    // 💡 التعديل الثاني: الجولات الـ 9 العادية (بدون مزاد)
-    socket.on('startNormalRound', d => {
-        currentQ = d.fullQuestion; 
-        currentWinner = "ALL"; // السماح للجميع بالإجابة
-        document.getElementById('current-round').innerText = d.roundNumber;
-        
-        const content = document.getElementById('q-content'); content.innerHTML = '';
-        
-        const imgSrc = currentQ.image || currentQ.img;
-        if (imgSrc) content.innerHTML += `<img src="${imgSrc}" class="q-image">`;
-        
-        content.innerHTML += `<h1 style="font-size: 24px; color: var(--main); margin: 0;">${currentQ.q}</h1>`;
-        renderOptions(currentQ.options, true); // true تعني الأزرار فعالة للجميع
-        
-        document.getElementById('auction-area').style.display = 'none';
-        document.getElementById('question-area').style.display = 'block';
-        startTimer();
-    });
-
     function bid() { 
         playSnd('click'); 
         let myCurrentPoints = parseInt(document.getElementById(`pts-${myInfo.team}`).innerText);
         let currentBidAmount = parseInt(document.getElementById('current-bid').innerText);
-        
-        if(currentBidAmount + 10 > myCurrentPoints) {
-            return alert("❌ نقاطك لا تكفي للمزايدة!");
-        }
-        socket.emit('placeBid', { team: myInfo.team, name: myInfo.name, amount: currentBidAmount + 10 }); 
+        if(currentBidAmount + 10 > myCurrentPoints) return alert("❌ نقاطك لا تكفي للمزايدة!");
+        socket.emit('placeBid', { roomID: myInfo.room, team: myInfo.team, name: myInfo.name, amount: currentBidAmount + 10 }); 
     }
     
     socket.on('updateBid', d => { 
@@ -298,42 +285,47 @@
 
     function submitAuctionWinner() {
         if(!currentHighestBidder) return alert("يجب المزايدة أولاً!");
-        socket.emit('winAuction', {question: currentQ, winningTeam: currentHighestBidder});
+        socket.emit('winAuction', {roomID: myInfo.room, question: currentQ, winningTeam: currentHighestBidder});
     }
 
-    socket.on('revealQuestion', d => {
+    socket.on('revealAuctionQuestion', d => {
         currentWinner = d.winningTeam; 
         const content = document.getElementById('q-content'); content.innerHTML = '';
-        
         const imgSrc = d.question.image || d.question.img;
         if (imgSrc) content.innerHTML += `<img src="${imgSrc}" class="q-image">`;
-        
         content.innerHTML += `<h1 style="font-size: 24px; color: var(--main); margin: 0;">${d.question.q}</h1>`;
-        renderOptions(d.question.options, myInfo.team === currentWinner);
+        
+        renderOptions(d.question.options, myInfo.team === currentWinner); // تفعيل الأزرار للفائز فقط بالمزاد
         document.getElementById('auction-area').style.display = 'none';
         document.getElementById('question-area').style.display = 'block';
         startTimer();
     });
 
+    // ==================== الوظائف المشتركة ====================
     function renderOptions(options, isMyTurn) {
         const opts = document.getElementById('options'); opts.innerHTML = '';
         options.forEach(o => {
             const b = document.createElement('button'); b.className = 'btn-game'; b.innerText = o;
-            
-            if(!isLeader || !isMyTurn) {
-                b.disabled = true;
-                b.style.opacity = "0.5";
-                b.style.cursor = "not-allowed";
-            }
-            
-            b.onclick = () => { playSnd('click'); socket.emit('submitAnswer', { team: myInfo.team, answer: o, name: myInfo.name }); clearInterval(timerInt); };
+            if(!isMyTurn) { b.disabled = true; b.style.opacity = "0.5"; b.style.cursor = "not-allowed"; }
+            b.onclick = () => { 
+                playSnd('click'); 
+                b.style.background = 'white'; b.style.color = 'black';
+                const allBtns = document.querySelectorAll('.btn-game');
+                allBtns.forEach(btn => btn.disabled = true);
+                
+                if (currentMode === 'normal') {
+                    document.getElementById('q-content').innerHTML += '<p style="color:var(--gold);">تمت الإجابة! بانتظار الفريق الآخر...</p>';
+                } else {
+                    clearInterval(timerInt);
+                }
+                socket.emit('submitAnswer', { roomID: myInfo.room, team: myInfo.team, answer: o, name: myInfo.name }); 
+            };
             opts.appendChild(b);
         });
     }
 
     function startTimer() {
         document.getElementById('timer-container').style.display = 'block';
-
         let timeLeft = 100; let step = 100 / (roomSettings.roundTime * 10);
         timerInt = setInterval(() => { 
             timeLeft -= step; 
@@ -342,92 +334,122 @@
                 clearInterval(timerInt); 
                 document.getElementById('options').innerHTML = '<h3 style="color:var(--red);">انتهى الوقت! ⏳</h3>';
                 
-                // القائد فقط يرسل التايم أوت عشان ما يتكرر الإرسال مرتين
-                if(isLeader && (currentWinner === "ALL" || myInfo.team === currentWinner)) {
-                    socket.emit('submitAnswer', { team: myInfo.team, answer: "TIMEOUT", name: myInfo.name });
+                if (currentMode === 'normal' && isLeader) {
+                    socket.emit('submitAnswer', { roomID: myInfo.room, team: myInfo.team, answer: "TIMEOUT_ALL" });
+                } else if (currentMode === 'auction' && isLeader && myInfo.team === currentWinner) {
+                    socket.emit('submitAnswer', { roomID: myInfo.room, team: myInfo.team, answer: "TIMEOUT" });
                 }
             } 
         }, 100);
     }
 
+    socket.on('teamAnswered', d => {
+        if (d.team !== myInfo.team && currentMode === 'normal') {
+            document.getElementById('q-content').innerHTML += `<p style="color:var(--main); font-size:14px;">الفريق الخصم قام بالإجابة...</p>`;
+        }
+    });
+
+    // انتقال السؤال في المزاد فقط
     socket.on('passTurn', d => {
         playSnd('wrong');
         currentWinner = d.toTeam; 
-        
         const ov = document.getElementById('result-overlay');
         ov.className = 'animate__animated shakeX'; ov.style.display = 'block'; 
         ov.style.borderColor = 'var(--red)'; ov.style.color = 'var(--red)';
         
-        document.getElementById('result-status').innerText = "خطأ! ❌";
+        document.getElementById('result-status').innerText = d.isTimeout ? "انتهى الوقت! ⏳" : "خطأ! ❌";
         document.getElementById('result-detail').innerText = `انتقلت الفرصة لفريق ${d.toTeam} مع حذف خيار!`;
         
         setTimeout(() => {
             ov.style.display = 'none';
-            if (myInfo.team === d.toTeam) { 
-                renderOptions(d.newOptions, true); 
-                startTimer(); 
-            } else { 
-                document.getElementById('options').innerHTML = '<h4 style="color:var(--gold);">دور الفريق الخصم حالياً...</h4>'; 
-                startTimer(); 
-            }
+            if (myInfo.team === d.toTeam) { renderOptions(d.newOptions, true); startTimer(); } 
+            else { document.getElementById('options').innerHTML = '<h4 style="color:var(--gold);">دور الفريق الخصم حالياً...</h4>'; startTimer(); }
         }, 2500);
     });
 
-    // 💡 التعديل الثالث: الانتقال التلقائي إذا انتهى الوقت
-    socket.on('timeOutAutoNext', d => {
-        clearInterval(timerInt);
-        document.getElementById('timer-container').style.display = 'none';
-        playSnd('wrong');
-
-        const ov = document.getElementById('result-overlay');
-        ov.className = 'animate__animated shakeX';
-        ov.style.display = 'block'; 
-        ov.style.borderColor = 'var(--gold)'; 
-        ov.style.color = 'var(--gold)';
+    // نتيجة الجولة العادية
+    socket.on('normalRoundResult', d => {
+        clearInterval(timerInt); document.getElementById('timer-container').style.display = 'none';
         
-        document.getElementById('result-status').innerText = "انتهى الوقت! ⏳";
-        document.getElementById('result-detail').innerText = "الإجابة هي: " + d.correctAns;
-
-        setTimeout(() => {
-            ov.style.display = 'none';
-            if(isLeader) {
-                // القائد يطلب السؤال اللي بعده تلقائياً
-                socket.emit('requestAuction');
-            } else {
-                document.getElementById('question-area').style.display = 'none';
-                document.getElementById('auction-area').style.display = 'block';
-                document.getElementById('hint-text').innerText = "جاري تحميل السؤال التالي...";
-            }
-        }, 3000);
-    });
-
-    socket.on('roundResult', d => {
         const ov = document.getElementById('result-overlay');
-        document.getElementById('timer-container').style.display = 'none';
-        clearInterval(timerInt);
-        ov.className = d.isCorrect ? 'animate__animated zoomIn' : 'animate__animated shakeX';
-        ov.style.display = 'block'; ov.style.borderColor = d.isCorrect ? 'var(--green)' : 'var(--red)';
-        ov.style.color = d.isCorrect ? 'var(--green)' : 'var(--red)';
+        ov.className = 'animate__animated zoomIn'; ov.style.display = 'block'; 
+        ov.style.borderColor = 'var(--gold)'; ov.style.color = 'var(--gold)';
         
-        document.getElementById('result-status').innerText = d.isCorrect ? "✅ إجابة صحيحة" : "❌ إجابة خاطئة";
-        document.getElementById('result-detail').innerText = d.isCorrect ? (d.name || "اللاعب") + " كسب الفريق 50 نقطة" : "الإجابة الصحيحة: " + d.correctAns;
+        document.getElementById('result-status').innerText = d.isTimeout ? "انتهى الوقت ⏳" : "النتيجة";
+        document.getElementById('result-detail').innerHTML = `
+            الفريق A: ${d.resA ? '✅ صح' : '❌ خطأ'} <br>
+            الفريق B: ${d.resB ? '✅ صح' : '❌ خطأ'} <br>
+            الجواب الصحيح: <span style="color:var(--green)">${d.correctAns}</span>
+        `;
+
+        if(d.resA || d.resB) playSnd('correct'); else playSnd('wrong');
 
         setTimeout(() => { 
             ov.style.display = 'none'; 
             document.getElementById('question-area').style.display = 'none'; 
             document.getElementById('auction-area').style.display = 'block'; 
+            showLeaderControls();
             
-            if(isLeader) {
-                document.getElementById('bid-ui').style.display = 'none';
-                document.getElementById('hint-text').innerText = "انتهت الجولة، اختر سؤال جديد 🚀";
-                document.getElementById('leader-controls').style.display = 'flex';
-            } else {
-                document.getElementById('hint-text').innerText = "بانتظار القائد لبدء الجولة الجديدة...";
-                document.getElementById('leader-controls').style.display = 'none';
-                document.getElementById('bid-ui').style.display = 'none';
+            // انتقال تلقائي إذا كان تايم أوت
+            if (d.isTimeout && isLeader) {
+                socket.emit('requestAuction', { roomID: myInfo.room });
+            }
+        }, 4000);
+    });
+
+    // نتيجة المزاد
+    socket.on('auctionRoundResult', d => {
+        clearInterval(timerInt); document.getElementById('timer-container').style.display = 'none';
+        const ov = document.getElementById('result-overlay');
+        ov.className = d.isCorrect ? 'animate__animated zoomIn' : 'animate__animated shakeX';
+        ov.style.display = 'block'; ov.style.borderColor = d.isCorrect ? 'var(--green)' : 'var(--red)';
+        ov.style.color = d.isCorrect ? 'var(--green)' : 'var(--red)';
+        
+        document.getElementById('result-status').innerText = d.isTimeout ? "انتهى الوقت ⏳" : (d.isCorrect ? "✅ إجابة صحيحة" : "❌ إجابة خاطئة");
+        document.getElementById('result-detail').innerText = "الإجابة الصحيحة: " + d.correctAns;
+        playSnd(d.isCorrect ? 'correct' : 'wrong');
+
+        setTimeout(() => { 
+            ov.style.display = 'none'; 
+            document.getElementById('question-area').style.display = 'none'; 
+            document.getElementById('auction-area').style.display = 'block'; 
+            showLeaderControls();
+            
+            if (d.isTimeout && isLeader) socket.emit('requestAuction', { roomID: myInfo.room });
+        }, 4000);
+    });
+
+    // الانتقال التلقائي الصريح عند انتهاء الوقت
+    socket.on('timeOutAutoNext', d => {
+        clearInterval(timerInt); document.getElementById('timer-container').style.display = 'none';
+        playSnd('wrong');
+        
+        const ov = document.getElementById('result-overlay');
+        ov.className = 'animate__animated shakeX'; ov.style.display = 'block'; 
+        ov.style.borderColor = 'var(--gold)'; ov.style.color = 'var(--gold)';
+        document.getElementById('result-status').innerText = "انتهى الوقت للجميع ⏳";
+        document.getElementById('result-detail').innerText = "الإجابة الصحيحة: " + d.correctAns;
+
+        setTimeout(() => {
+            ov.style.display = 'none';
+            if (isLeader) socket.emit('requestAuction', { roomID: myInfo.room });
+            else {
+                document.getElementById('question-area').style.display = 'none';
+                document.getElementById('auction-area').style.display = 'block';
+                document.getElementById('hint-text').innerText = "جاري الانتقال للسؤال التالي تلقائياً...";
             }
         }, 3000);
     });
+
+    function showLeaderControls() {
+        if(isLeader) {
+            document.getElementById('bid-ui').style.display = 'none';
+            document.getElementById('hint-text').innerText = "انتهت الجولة، اختر سؤال جديد 🚀";
+            document.getElementById('leader-controls').style.display = 'flex';
+        } else {
+            document.getElementById('hint-text').innerText = "بانتظار القائد لبدء الجولة القادمة...";
+        }
+    }
 
     socket.on('gameOver', d => {
         document.getElementById('auction-area').style.display = 'none';
@@ -435,12 +457,12 @@
         document.getElementById('timer-container').style.display = 'none';
         document.getElementById('win-screen').style.display = 'block';
         
-        const nameA = document.getElementById('display-name-A') ? document.getElementById('display-name-A').innerText : "الفريق A";
-        const nameB = document.getElementById('display-name-B') ? document.getElementById('display-name-B').innerText : "الفريق B";
+        const nameA = document.getElementById('display-name-A').innerText;
+        const nameB = document.getElementById('display-name-B').innerText;
         const winnerName = d.pointsA > d.pointsB ? nameA : (d.pointsB > d.pointsA ? nameB : "تعادل!");
         
         document.getElementById('winner-text').innerHTML = `
-            <div style="background: rgba(0,0,0,0.5); border: 2px solid var(--main); padding: 15px; border-radius: 15px; font-size: 20px;">
+            <div style="background: rgba(0,0,0,0.5); border: 2px solid var(--main); padding: 15px; border-radius: 15px;">
                 <div style="color: #3498db; margin-bottom: 10px;">🔵 ${nameA}: ${d.pointsA} نقطة</div>
                 <div style="color: #e67e22; margin-bottom: 10px;">🟠 ${nameB}: ${d.pointsB} نقطة</div>
                 <hr style="border-color: var(--gold); margin: 15px 0;">
@@ -452,6 +474,7 @@
 </script>
 </body>
 </html>
+
 
 
 
