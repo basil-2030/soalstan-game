@@ -81,8 +81,8 @@
             </div>
         </div>
 
-        <button class="btn-game" onclick="join('A')">team A</button>
-        <button class="btn-game" style="border-color:var(--red); color:var(--red);" onclick="join('B')">team B</button>
+        <button class="btn-game" onclick="join('A')">الانضمام للفريق الأول</button>
+        <button class="btn-game" style="border-color:var(--red); color:var(--red);" onclick="join('B')">الانضمام للفريق الثاني</button>
     </div>
 
     <div class="how-to-play">
@@ -106,7 +106,7 @@
         <div class="top-info-bar">
             <div id="round-counter" style="color: var(--gold); font-weight: bold; font-size: 13px;">جولة: <span id="current-round">1</span>/<span id="total-rounds">10</span></div>
             <div id="real-time-clock">00:00:00</div>
-            <div style="font-size: 13px;">A: <span id="pts-A">100</span> | B: <span id="pts-B">100</span></div>
+            <div style="font-size: 13px;"><span id="display-name-A">A</span>: <span id="pts-A">100</span> | <span id="display-name-B">B</span>: <span id="pts-B">100</span></div>
         </div>
 
         <div style="display: flex; justify-content: space-between; align-items: center; width: 100%; margin-bottom: 10px;">
@@ -125,16 +125,14 @@
         
         <div id="auction-area" style="text-align: center; width: 100%; margin-top: 5px;">
             <h2 id="hint-text" style="font-size: 22px; border: 2px dashed var(--gold); padding: 20px; border-radius: 20px;">بانتظار القائد...</h2>
-            
             <div id="leader-controls" style="display:none; margin-top: 10px; gap: 5px; justify-content: center;">
                 <button class="btn-game" style="width: 48%; border-color: var(--green); color: var(--green);" onclick="socket.emit('requestAuction')">سؤال جديد 🚀</button>
                 <button class="btn-game" style="width: 48%; border-color: #6b7280; color: #9ca3af;" onclick="socket.emit('changeQuestion')">تغيير السؤال 🔄</button>
             </div>
-            
             <div id="bid-ui" style="display:none; margin-top: 10px;">
                 <p>المزاد: <span id="current-bid">0</span></p>
                 <button class="btn-game" onclick="bid()">زايد +10 🔨</button>
-                <button id="win-btn" class="btn-game" style="display:none; background:white; color:black;" onclick="socket.emit('winAuction', {question:currentQ, winningTeam: myInfo.team})">إرسال المزايدة ✅</button>
+                <button id="win-btn" class="btn-game" style="display:none; background:white; color:black;" onclick="submitAuctionWinner()">إرسال المزايدة ✅</button>
             </div>
         </div>
 
@@ -157,6 +155,7 @@
 
     const socket = io();
     let myInfo = {}, isLeader = false, currentQ = {}, timerInt, roomSettings = {}, currentWinner = "";
+    let currentHighestBidder = ""; 
 
     function updateClock() {
         const now = new Date();
@@ -184,8 +183,8 @@
         const mt = parseInt(document.getElementById('set-time').value);
         const mr = parseInt(document.getElementById('set-rounds').value);
         
-        const teamAName = document.getElementById('team-a-name') ? document.getElementById('team-a-name').value : "";
-        const teamBName = document.getElementById('team-b-name') ? document.getElementById('team-b-name').value : "";
+        const teamAName = document.getElementById('team-a-name') ? document.getElementById('team-a-name').value || "فريق A" : "فريق A";
+        const teamBName = document.getElementById('team-b-name') ? document.getElementById('team-b-name').value || "فريق B" : "فريق B";
 
         if(!n || !r) return alert("أكمل البيانات");
         myInfo = { name: n, room: r, team: t };
@@ -202,20 +201,25 @@
 
     function exitGame() {
         playSnd('click');
+        socket.emit('leaveRoom');
         document.getElementById('game-screen').style.display = 'none';
         document.getElementById('exit-btn').style.display = 'none';
         document.getElementById('join-screen').style.display = 'flex';
-        socket.emit('leaveRoom');
+        
+        // إعادة التعيين لتجنب التعليق عند الدخول مرة أخرى
+        isLeader = false;
+        document.getElementById('leader-tag').style.display = 'none'; 
+        document.getElementById('leader-controls').style.display = 'none'; 
+        document.getElementById('hint-text').innerText = "بانتظار القائد...";
     }
 
     socket.on('init', d => {
         isLeader = d.isLeader; 
         roomSettings = d.settings;
         
-        if(document.getElementById('my-team-display')) {
-            let myTeamStr = myInfo.team === 'A' ? (d.teamAName || 'A') : (d.teamBName || 'B');
-            document.getElementById('my-team-display').innerText = "فريقك: " + myTeamStr;
-        }
+        if(document.getElementById('display-name-A')) document.getElementById('display-name-A').innerText = d.teamAName;
+        if(document.getElementById('display-name-B')) document.getElementById('display-name-B').innerText = d.teamBName;
+        if(document.getElementById('my-team-display')) document.getElementById('my-team-display').innerText = "فريقك: " + (myInfo.team === 'A' ? d.teamAName : d.teamBName);
 
         if (isLeader) { 
             document.getElementById('leader-tag').style.display = 'block'; 
@@ -241,9 +245,9 @@
         document.getElementById('win-screen').style.display = 'none'; 
         document.getElementById('hint-text').innerText = "تلميح: " + d.hint;
         
-        // إذا لم يكن الحدث تغيير سؤال، صفر المزاد
         if (!d.isChange) {
             document.getElementById('current-bid').innerText = '0';
+            currentHighestBidder = "";
         }
         
         if(isLeader) { 
@@ -255,15 +259,33 @@
         }
     });
 
-    function bid() { playSnd('click'); socket.emit('placeBid', { team: myInfo.team, amount: parseInt(document.getElementById('current-bid').innerText) + 10 }); }
+    function bid() { 
+        playSnd('click'); 
+        let myCurrentPoints = parseInt(document.getElementById(`pts-${myInfo.team}`).innerText);
+        let currentBidAmount = parseInt(document.getElementById('current-bid').innerText);
+        
+        if(currentBidAmount + 10 > myCurrentPoints) {
+            return alert("❌ نقاطك لا تكفي للمزايدة!");
+        }
+        socket.emit('placeBid', { team: myInfo.team, name: myInfo.name, amount: currentBidAmount + 10 }); 
+    }
     
-    socket.on('updateBid', d => { playSnd('bid'); document.getElementById('current-bid').innerText = d.amount; if(isLeader) document.getElementById('win-btn').style.display = 'inline-block'; });
+    socket.on('updateBid', d => { 
+        playSnd('bid'); 
+        document.getElementById('current-bid').innerText = d.amount; 
+        currentHighestBidder = d.team; 
+        if(isLeader) document.getElementById('win-btn').style.display = 'inline-block'; 
+    });
+
+    function submitAuctionWinner() {
+        if(!currentHighestBidder) return alert("يجب المزايدة أولاً!");
+        socket.emit('winAuction', {question: currentQ, winningTeam: currentHighestBidder});
+    }
 
     socket.on('revealQuestion', d => {
         currentWinner = d.winningTeam; 
         const content = document.getElementById('q-content'); content.innerHTML = '';
         
-        // دمج القراءة للصور
         const imgSrc = d.question.image || d.question.img;
         if (imgSrc) content.innerHTML += `<img src="${imgSrc}" class="q-image">`;
         
@@ -302,8 +324,7 @@
                 clearInterval(timerInt); 
                 document.getElementById('options').innerHTML = '<h3 style="color:var(--red);">انتهى الوقت! ⏳</h3>';
                 
-                // إرسال الإجابة كتايم أوت فقط من لاعب الفريق صاحب الدور
-                if(myInfo.team === currentWinner) {
+                if(isLeader && myInfo.team === currentWinner) {
                     socket.emit('submitAnswer', { team: myInfo.team, answer: "TIMEOUT", name: myInfo.name });
                 }
             } 
@@ -358,7 +379,6 @@
             document.getElementById('question-area').style.display = 'none'; 
             document.getElementById('auction-area').style.display = 'block'; 
             
-            // حل مشكلة "بانتظار القائد"
             if(isLeader) {
                 document.getElementById('bid-ui').style.display = 'none';
                 document.getElementById('hint-text').innerText = "انتهت الجولة، اختر سؤال جديد 🚀";
@@ -377,10 +397,8 @@
         document.getElementById('timer-container').style.display = 'none';
         document.getElementById('win-screen').style.display = 'block';
         
-        // عرض قائمة فخمة للفائز
-        const nameA = document.getElementById('team-a-name') ? document.getElementById('team-a-name').value || "الفريق A" : "الفريق A";
-        const nameB = document.getElementById('team-b-name') ? document.getElementById('team-b-name').value || "الفريق B" : "الفريق B";
-        
+        const nameA = document.getElementById('display-name-A') ? document.getElementById('display-name-A').innerText : "الفريق A";
+        const nameB = document.getElementById('display-name-B') ? document.getElementById('display-name-B').innerText : "الفريق B";
         const winnerName = d.pointsA > d.pointsB ? nameA : (d.pointsB > d.pointsA ? nameB : "تعادل!");
         
         document.getElementById('winner-text').innerHTML = `
