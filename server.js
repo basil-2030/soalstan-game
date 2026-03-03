@@ -12,7 +12,6 @@ app.use(express.static(__dirname));
 
 let questionBank = [];
 
-// نظام الحماية لقراءة الأسئلة
 try {
     const data = fs.readFileSync(path.join(__dirname, 'questions.json'), 'utf8');
     questionBank = JSON.parse(data);
@@ -30,7 +29,6 @@ io.on('connection', (socket) => {
     socket.on('joinRoom', (data) => {
         const { roomID, settings, team, teamAName, teamBName } = data;
         
-        // عزل الغرف تماماً عن بعضها
         if(socket.currentRoom && socket.currentRoom !== roomID) {
             socket.leave(socket.currentRoom);
         }
@@ -54,7 +52,6 @@ io.on('connection', (socket) => {
         
         const room = roomsData[roomID];
 
-        // تعيين القائد
         if (team && !room.teams[team].leader) {
             room.teams[team].leader = socket.id;
         }
@@ -73,7 +70,6 @@ io.on('connection', (socket) => {
         io.to(roomID).emit('updateScores', { pointsA: room.teams['A'].points, pointsB: room.teams['B'].points });
     });
 
-    // طلب جولة جديدة (تزيد الجولة)
     socket.on('requestAuction', () => {
         const rID = socket.currentRoom;
         const room = roomsData[rID];
@@ -81,7 +77,10 @@ io.on('connection', (socket) => {
 
         room.currentRound++;
         if (room.currentRound > room.settings.maxRounds) {
-            return io.to(rID).emit('gameOver', { pointsA: room.teams['A'].points, pointsB: room.teams['B'].points });
+            io.to(rID).emit('gameOver', { pointsA: room.teams['A'].points, pointsB: room.teams['B'].points });
+            // 💡 الإضافة لحل التعليق: تدمير الغرفة بعد نهاية اللعبة لتبدأ من جديد نظيفة
+            delete roomsData[rID]; 
+            return;
         }
 
         const q = questionBank[Math.floor(Math.random() * questionBank.length)];
@@ -92,7 +91,6 @@ io.on('connection', (socket) => {
         io.to(rID).emit('startAuction', { hint: q.hint, fullQuestion: q, roundNumber: room.currentRound, isChange: false });
     });
 
-    // تغيير السؤال (بدون زيادة الجولة)
     socket.on('changeQuestion', () => {
         const rID = socket.currentRoom;
         const room = roomsData[rID];
@@ -106,7 +104,6 @@ io.on('connection', (socket) => {
         io.to(rID).emit('startAuction', { hint: q.hint, fullQuestion: q, roundNumber: room.currentRound, isChange: true });
     });
 
-    // معالجة الإجابات وانتهاء الوقت
     socket.on('submitAnswer', (data) => {
         const rID = socket.currentRoom;
         const room = roomsData[rID];
@@ -114,7 +111,6 @@ io.on('connection', (socket) => {
         
         if (room.turnTaken && data.team === room.firstTeam) return;
 
-        // معالجة انتهاء الوقت بشكل سليم
         if (data.answer === "TIMEOUT") {
             room.teams[data.team].points -= 30;
             if (!room.turnTaken) {
@@ -176,6 +172,7 @@ io.on('connection', (socket) => {
 
 const PORT = process.env.PORT || 3000;
 server.listen(PORT, () => console.log('🚀 Server running on port ' + PORT));
+
 
 
 
